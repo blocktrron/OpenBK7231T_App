@@ -200,6 +200,9 @@ static int g_baudRate = 9600;
 static int g_tuyaNextRequestDelay;
 static bool g_sensorMode = 0;
 
+// State of WiFi sent to MCU
+static int g_tuyaMCUWiFiState = -1;
+
 static bool heartbeat_valid = false;
 static int heartbeat_timer = 0;
 static int heartbeat_counter = 0;
@@ -214,6 +217,7 @@ static bool self_processing_mode = true;
 static bool state_updated = false;
 static int g_sendQueryStatePackets = 0;
 static int g_tuyaMCUBatteryAckDelay = 0;
+static int g_tuyaMCUBatteryTimeout = 0;
 
 // wifistate to send when not online
 // See: https://imgur.com/a/mEfhfiA
@@ -1051,10 +1055,12 @@ commandResult_t TuyaMCU_SendMCUConf(const void* context, const char* cmd, const 
 
 void Tuya_SetWifiState(uint8_t state)
 {
+	g_tuyaMCUWiFiState = state;
 	TuyaMCU_SendCommandWithData(TUYA_CMD_WIFI_STATE, &state, 1);
 }
 void Tuya_SetWifiState_V0(uint8_t state)
 {
+	g_tuyaMCUWiFiState = state;
 	TuyaMCU_SendCommandWithData(0x02, &state, 1);
 }
 
@@ -2077,6 +2083,44 @@ commandResult_t Cmd_TuyaMCU_SetBatteryAckDelay(const void* context, const char* 
 	return CMD_RES_OK;
 }
 
+commandResult_t Cmd_TuyaMCU_SetBatteryTimeout(const void* context, const char* cmd, const char* args, int cmdFlags) {
+	int timeout;
+
+	Tokenizer_TokenizeString(args, 0);
+	Tokenizer_CheckArgsCountAndPrintWarning(args, 1);
+
+	timeout = Tokenizer_GetArgInteger(0);
+
+	if (!Tokenizer_IsArgInteger(0)) {
+		addLogAdv(LOG_INFO, LOG_FEATURE_TUYAMCU, "SetBatteryAckDelay: requires 1 argument [timeout in seconds]\n");
+		return CMD_RES_NOT_ENOUGH_ARGUMENTS;
+	}
+
+	if (timeout < 0) {
+		addLogAdv(LOG_INFO, LOG_FEATURE_TUYAMCU, "SetBatteryAckDelay: delay must be positive\n");
+		return CMD_RES_BAD_ARGUMENT;
+	}
+
+	if (timeout > 70) {
+		addLogAdv(LOG_INFO, LOG_FEATURE_TUYAMCU, "SetBatteryAckDelay: delay too high, max 70 seconds\n");
+		return CMD_RES_BAD_ARGUMENT;
+	}
+
+	if (timeout && timeout < 10) {
+		addLogAdv(LOG_INFO, LOG_FEATURE_TUYAMCU, "SetBatteryAckDelay: delay too low, min 10 seconds\n");
+		return CMD_RES_BAD_ARGUMENT;
+	}
+
+	g_tuyaMCUBatteryTimeout = timeout;
+
+	return CMD_RES_OK;
+}
+
+int TuyaMCU_BatteryTimeoutExceeded() {
+	return g_tuyaMCUBatteryTimeout && g_tuyaMCUBatteryTimeout <= g_secondsElapsed;
+}
+
+
 void TuyaMCU_RunWiFiUpdateAndPackets() {
 	//addLogAdv(LOG_INFO, LOG_FEATURE_TUYAMCU,"WifiCheck %d ", wifi_state_timer);
 	/* Monitor WIFI and MQTT connection and apply Wifi state
@@ -2245,7 +2289,7 @@ void TuyaMCU_RunStateMachine_BatteryPowered() {
 		break;
 	case TM0_STATE_AWAITING_WIFI:
 		if (g_tuyaNextRequestDelay <= 0) {
-			if (Main_IsConnectedToWiFi()) {
+			if (Main_IsConnectedToWiFi() || TuyaMCU_BatteryTimeoutExceeded()) {
 				Tuya_SetWifiState_V0(TUYA_NETWORK_STATUS_CONNECTED_TO_ROUTER);
 				// retry
 				g_tuyaNextRequestDelay = 3;
@@ -2263,6 +2307,8 @@ void TuyaMCU_RunStateMachine_BatteryPowered() {
 				g_defaultTuyaMCUWiFiState == 0x04
 				||
 				g_cfg.mqtt_host[0] == 0
+				||
+				TuyaMCU_BatteryTimeoutExceeded()
 				)
 #endif
 			{
@@ -2509,6 +2555,12 @@ void TuyaMCU_Init()
 	//cmddetail:"fn":"NULL);","file":"driver/drv_tuyaMCU.c","requires":"",
 	//cmddetail:"examples":""}
 	CMD_RegisterCommand("tuyaMcu_setBatteryAckDelay", Cmd_TuyaMCU_SetBatteryAckDelay, NULL);
+
+	//cmddetail:{"name":"Cmd_TuyaMCU_SetBatteryTimeout","args":"[timeout]",
+	//cmddetail:"descr":"Defines the timeout before the TuyaMCU is requested to put the device to sleep regardless of job completion. Default is disabled (0).",
+	//cmddetail:"fn":"NULL);","file":"driver/drv_tuyaMCU.c","requires":"",
+	//cmddetail:"examples":""}
+	CMD_RegisterCommand("tuyaMcu_setBatteryTimeout", Cmd_TuyaMCU_SetBatteryTimeout, NULL);
 }
 
 
