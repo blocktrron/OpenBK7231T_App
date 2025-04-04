@@ -2246,8 +2246,7 @@ void TuyaMCU_RunStateMachine_BatteryPowered() {
 	case TM0_STATE_AWAITING_WIFI:
 		if (g_tuyaNextRequestDelay <= 0) {
 			if (Main_IsConnectedToWiFi()) {
-				// send wifi state 0x03 
-				Tuya_SetWifiState_V0(0x03);
+				Tuya_SetWifiState_V0(TUYA_NETWORK_STATUS_CONNECTED_TO_ROUTER);
 				// retry
 				g_tuyaNextRequestDelay = 3;
 			}
@@ -2267,8 +2266,7 @@ void TuyaMCU_RunStateMachine_BatteryPowered() {
 				)
 #endif
 			{
-				// send wifi state 0x04 
-				Tuya_SetWifiState_V0(0x04);
+				Tuya_SetWifiState_V0(TUYA_NETWORK_STATUS_CONNECTED_TO_CLOUD);
 				// retry
 				g_tuyaNextRequestDelay = 3;
 			}
