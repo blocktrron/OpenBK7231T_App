@@ -2335,7 +2335,7 @@ void TuyaMCU_RunStateMachine_BatteryPowered() {
 		break;
 	case TM0_STATE_AWAITING_STATES:
 		if (g_tuyaNextRequestDelay <= 0) {
-			if (g_tuyaMCUBatteryAckDelay > 0) {
+			if (g_tuyaMCUBatteryAckDelay > 0 && !TuyaMCU_BatteryTimeoutExceeded()) {
 				g_tuyaMCUBatteryAckDelay--;
 				break;
 			}
