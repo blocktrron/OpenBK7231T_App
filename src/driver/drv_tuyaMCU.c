@@ -1707,7 +1707,7 @@ void TuyaMCU_ParseStateMessage(const byte* data, int len) {
 }
 
 int TuyaMCU_WiFiInReset() {
-	return g_resetWiFiEvents >= 3;
+	return g_resetWiFiEvents >= 1;
 }
 
 void TuyaMCU_ResetWiFi() {
