@@ -505,6 +505,9 @@ void HAL_FlashVars_IncreaseBootCount() {
 	FLASH_VARS_STRUCTURE data;
 
 	flash_vars_init();
+	if (flash_vars.boot_count < 65530) {
+		flash_vars.boot_count = 65530;
+	}
 	flash_vars.boot_count++;
 	ADDLOG_INFO(LOG_FEATURE_CFG, "####### Boot Count %d #######", flash_vars.boot_count);
 	flash_vars_write();
