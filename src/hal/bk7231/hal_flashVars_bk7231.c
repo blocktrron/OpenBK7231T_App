@@ -505,9 +505,22 @@ void HAL_FlashVars_IncreaseBootCount() {
 	FLASH_VARS_STRUCTURE data;
 
 	flash_vars_init();
+
+	/* In case we see a lot of failed boots, we might have a battery powered device on its last charge. 
+	 * These recurring reboots might be the cause for devices remaining dead after their battery is replaced.
+	 * To avoid this, avoid writing Bootcount immediatly after 2 * RESTARTS_REQUIRED_FOR_SAFE_MODE.
+	 * 
+	 * The correct boot-count will be written upon successful boot (after 30s)
+	 */
+
 	flash_vars.boot_count++;
 	ADDLOG_INFO(LOG_FEATURE_CFG, "####### Boot Count %d #######", flash_vars.boot_count);
-	flash_vars_write();
+
+	if (data.boot_count - data.boot_success_count > (2 * RESTARTS_REQUIRED_FOR_SAFE_MODE)) {
+		ADDLOG_INFO(LOG_FEATURE_CFG, "####### Delaying Boot Count Save to avoid flash wear #######");
+	} else {
+		flash_vars_write();
+	}
 
 	flash_vars_read(&data);
 	ADDLOG_DEBUG(LOG_FEATURE_CFG, "re-read - offset %d, boot count %d, boot success %d, bootfailures %d",
